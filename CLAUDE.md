@@ -49,3 +49,12 @@ in the `EMBEDDED` object and its comment). Change both together.
   `fix`, `chore`, `docs`, `build`, etc., with optional scopes
   (e.g. `chore(compose): ...`).
 - Default branch: `main`.
+
+## Release workflow
+**Never run this unless the user explicitly asks for a release, and always
+confirm the exact version number with the user before proceeding.** Then, in order:
+1. Build the image tagged with the `v`-prefixed semantic version (e.g. `vX.Y.Z`).
+2. Tag that same image `latest`.
+3. Push both tags to GHCR (`ghcr.io/dineiar/unraid_monitor_dashboard`).
+4. Tag the commit with the same `vX.Y.Z` and push the tag.
+5. Create a GitHub release pointing at that tag (`gh release create`).
