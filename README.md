@@ -20,6 +20,10 @@ on the host in `collector.py`. The container never gets `docker.sock`, host
 networking, capabilities, or a writable filesystem — its only host touch-point
 is a single **read-only** directory containing `metrics.json`.
 
+![Screenshot of the dashboard page using dark theme.](docs/demo_dark.png)
+---
+![Screenshot of the dashboard page using light theme.](docs/demo_light.png)
+
 ## Files
 
 | File | Purpose |
