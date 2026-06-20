@@ -1,11 +1,10 @@
 # Keep the build context tiny and the image free of host-side / docs files.
-collector.py
-README.md
-docker-compose.yml
-*.md
-Server Dashboard - Prototype.html
 .git
 .gitignore
 data/
+docs/
+*.md
+collector.py
+docker-compose.yml
 **/metrics.json
 **/dashboard_history.json
