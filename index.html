@@ -174,10 +174,11 @@
 const CONFIG = {
   // Live data file, served by nginx from the read-only volume mount at
   // /usr/share/nginx/html/data/metrics.json (see docker-compose.yml).
-  // The host collector.py writes it every ~5 minutes.
+  // The host collector.py writes it according to its schedule.
   dataUrl: 'data/metrics.json',
-  refreshSeconds: 30,        // how often to re-poll dataUrl (data refreshes host-side every ~5 min)
-  showTrends: true           // show the inbound/outbound sparklines
+  refreshSeconds: 120,    // how often to re-poll dataUrl (data refreshes
+                          // host-side according to cron, usually every ~5 min)
+  showTrends: true        // show the inbound/outbound sparklines
 };
 
 /* ================================================================
