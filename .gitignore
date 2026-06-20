@@ -1,0 +1,18 @@
+# Secrets — keep env files out of version control
+*.env
+.env
+
+# Collector runtime artifacts
+collector.log
+metrics.json
+dashboard_history.json
+data/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# OS
+.DS_Store

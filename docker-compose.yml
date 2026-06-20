@@ -1,0 +1,77 @@
+# =============================================================================
+#  Dashboard container (Unraid "Docker Compose Manager" compatible)
+#
+#  Hardening summary:
+#    * runs as non-root uid:gid 101:101
+#    * ALL Linux capabilities dropped (binds 8080, so none are required)
+#    * no-new-privileges: a setuid binary can never escalate
+#    * read-only root filesystem; only tmpfs scratch dirs are writable
+#    * NO host networking, NO /var/run/docker.sock, NO bind to host paths
+#      other than the single read-only metrics directory
+#    * metrics are mounted READ-ONLY — the container can never write to host
+#
+#  The collector writes JSON into the host directory below; the
+#  container only ever reads it.
+# =============================================================================
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # To deploy from a registry instead of building on the host, comment out
+    # the `build:` block above and uncomment the line below:
+    # image: ghcr.io/your/server-dashboard:latest
+    image: server-dashboard:latest
+    container_name: server-dashboard
+    hostname: server-dashboard
+
+    # Host 8088 -> container 8080. Change the left side to taste. Never use
+    # network_mode: host — there is no reason for this container to see the LAN.
+    ports:
+      - "8088:8080"
+
+    # ---- The ONLY host touch-point: the metrics directory, read-only. -------
+    # The collector writes <appdata>/dashboard/data/metrics.json on the host.
+    # Mounting the *directory* (not the file) avoids Docker auto-creating a
+    # phantom directory if the JSON does not exist yet on first boot.
+    volumes:
+      - /mnt/user/appdata/dashboard/data:/usr/share/nginx/html/data:ro
+
+    # ---- Privilege / capability hardening ----------------------------------
+    user: "101:101"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # nginx-unprivileged needs a few writable scratch paths. With a read-only
+    # root fs we back them with RAM-only tmpfs (lost on restart, which is fine).
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 4s
+      retries: 3
+      start_period: 5s
+
+    # Optional: surface a WebUI link + icon in the Unraid Docker tab.
+    labels:
+      net.unraid.docker.webui: "http://[IP]:[PORT:8080]/"
+      net.unraid.docker.icon: "https://raw.githubusercontent.com/loadingpage/unraid-icons/main/icons/dashboard.png"
+
+    # Modest resource ceiling — it is a static file server.
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+networks:
+  default:
+    name: dashboard-net

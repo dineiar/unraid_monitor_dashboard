@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unraid Monitor Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     THEME TOKENS  — tweak colors here
+     ============================================================ */
+  :root{
+    --bg:#0b0d11; --panel:#15181e; --panel2:#11141a;
+    --border:#232a33; --border2:#1f252d; --hairline:#1c2128; --track:#20262e;
+    --border-hover:#3a4350; --header-line:#1b2027; --sep:#39404a;
+    --text:#e6e9ee; --soft:#c2c8d0; --muted:#9aa1ac; --dim:#7b828d; --dim2:#69707b;
+    --emerald:#2dd4a7; --amber:#f5b13d; --crimson:#f2705c; --blue:#3d9bf5;
+  }
+  [data-theme="light"]{
+    --bg:#eef0f3; --panel:#ffffff; --panel2:#f6f7f9;
+    --border:#e2e5ea; --border2:#e8ebef; --hairline:#edeff2; --track:#e6e9ee;
+    --border-hover:#cfd4db; --header-line:#e2e5ea; --sep:#c8cdd4;
+    --text:#1a1d22; --soft:#363b42; --muted:#586069; --dim:#6c747e; --dim2:#8b929b;
+    --emerald:#0f9e78; --amber:#bf7d16; --crimson:#d6453f; --blue:#2477cf;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;transition:background .3s ease,color .3s ease}
+  .mono{font-family:'JetBrains Mono',monospace}
+  a{color:inherit}
+  .wrap{max-width:1320px;margin:0 auto;padding:28px 24px 60px}
+
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .pulse-dot{width:7px;height:7px;border-radius:50%;display:inline-block;animation:pulse 2s ease-in-out infinite}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+
+  /* ---- header ---- */
+  .header{display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:flex-end;
+          padding-bottom:22px;margin-bottom:26px;border-bottom:1px solid var(--header-line)}
+  .brand{display:flex;align-items:center;gap:15px}
+  .logo{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#2dd4a7,#3d9bf5);
+        display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;
+        font-weight:600;font-size:18px;color:#06120d}
+  .server-name{font-size:25px;font-weight:700;letter-spacing:-.01em;line-height:1.1}
+  .server-meta{font-size:12.5px;color:var(--dim);margin-top:6px;display:flex;gap:13px;flex-wrap:wrap}
+  .sep{color:var(--sep)}
+  .sync{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--dim)}
+  .header-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .theme-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:999px;
+                background:var(--panel);border:1px solid var(--border);color:var(--soft);cursor:pointer;
+                font-family:'JetBrains Mono',monospace;font-size:11.5px;transition:border-color .2s ease}
+  .theme-toggle:hover{border-color:var(--dim)}
+  .tt-dot{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--soft);
+          background:linear-gradient(90deg,var(--soft) 0 50%,transparent 50% 100%)}
+
+  /* ---- grids ---- */
+  .grid-core{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:18px}
+  .grid-mid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:18px;margin-top:18px}
+  .grid-routines{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .grid-apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+
+  /* ---- cards ---- */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px}
+  .card-label{margin:0 0 16px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;
+              text-transform:uppercase;color:var(--dim2);font-weight:600}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;margin:30px 0 16px}
+  .section-title{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
+
+  /* ---- rings ---- */
+  .ring-card{display:flex;flex-direction:column;align-items:center}
+  .ring-card .card-label{align-self:flex-start;margin-bottom:8px}
+  .ring-wrap{position:relative;width:150px;height:150px;margin:4px 0 8px}
+  .ring-wrap svg{width:150px;height:150px}
+  .ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring-val{font-family:'JetBrains Mono',monospace;font-size:31px;font-weight:600;line-height:1}
+  .ring-val span{font-size:15px;color:var(--dim)}
+  .ring-sub{font-size:11px;color:var(--dim);margin-top:5px}
+  .ring-foot{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:7px}
+
+  /* ---- list rows (temps) ---- */
+  .row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--hairline)}
+  .row-name{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--soft)}
+  .row-val{font-family:'JetBrains Mono',monospace;font-size:13.5px;font-weight:600}
+
+  /* ---- storage bars ---- */
+  .pools{display:flex;flex-direction:column;gap:18px}
+  .pool-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .pool-name{font-size:14px;font-weight:600;text-transform:capitalize}
+  .pool-meta{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim)}
+  .bar{height:9px;background:var(--track);border-radius:6px;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:6px;transition:width .6s ease}
+  .pool-foot{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim2);margin-top:7px}
+
+  /* ---- array / parity ---- */
+  .array-status{display:flex;align-items:center;gap:13px;padding:15px;border-radius:12px;
+                background:var(--panel2);border:1px solid;margin-bottom:18px}
+  .array-status .led{width:12px;height:12px;border-radius:50%;flex:none}
+  .array-status .lbl{font-weight:600;font-size:15px}
+  .array-status .sub{font-size:12px;color:var(--dim);margin-top:2px}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  .stat{background:var(--panel2);border:1px solid var(--border2);border-radius:10px;padding:13px 14px}
+  .stat-k{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim2);margin-bottom:6px}
+  .stat-v{font-family:'JetBrains Mono',monospace;font-size:13.5px;font-weight:600;color:var(--text)}
+
+  /* ---- network ---- */
+  .traffic{display:flex;flex-direction:column;gap:14px;margin-bottom:18px}
+  .traffic-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
+  .traffic-lbl{font-size:12.5px;color:var(--muted)}
+  .traffic-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600}
+  .traffic-val .u{color:var(--dim2);font-weight:400;font-size:11px}
+  .spark{width:100%;height:38px;display:block}
+  .divider{height:1px;background:var(--hairline);margin-bottom:16px}
+  .speed-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}
+  .speed-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+  .speed{background:var(--panel2);border:1px solid var(--border2);border-radius:10px;padding:13px;text-align:center}
+  .speed-v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600}
+  .speed-k{font-size:10px;color:var(--dim2);margin-top:5px;letter-spacing:.05em}
+  .ts{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;border:1px solid}
+  .ts-name{font-size:13px;font-weight:600}
+  .ts-host{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);margin-top:2px}
+  .ts-tag{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;color:var(--dim2)}
+
+  /* ---- routines ---- */
+  .routine{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);
+           border-radius:14px;padding:18px;text-decoration:none;color:inherit;transition:border-color .2s ease}
+  .routine:hover{border-color:#3a4350}
+  .routine-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}
+  .routine-name{font-size:15px;font-weight:600;margin-bottom:3px}
+  .routine-sched{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim)}
+  .routine-last{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-top:14px}
+  .read-more{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--dim)}
+  .disk-block{margin-top:14px;padding-top:14px;border-top:1px solid var(--track)}
+  .disk-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+  .disk-lbl{font-size:12.5px;color:var(--muted)}
+  .disk-meta{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim)}
+  .disk-foot{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim2);margin-top:6px}
+
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+        font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;border:1px solid}
+
+  /* ---- self-hosted apps ---- */
+  .app-card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--border);
+            border-radius:14px;padding:18px;display:flex;flex-direction:column}
+  .ribbon{position:absolute;top:16px;right:-34px;width:130px;text-align:center;transform:rotate(45deg);
+          background:var(--amber);color:#0b0d11;font-family:'JetBrains Mono',monospace;font-size:9.5px;
+          font-weight:600;letter-spacing:.16em;padding:4px 0;box-shadow:0 1px 5px rgba(0,0,0,.4)}
+  .app-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .app-tile{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+            font-family:'JetBrains Mono',monospace;font-weight:600;font-size:18px;flex:none;overflow:hidden}
+  .app-logo{width:30px;height:30px;object-fit:contain;display:block}
+  .app-name{min-width:0;font-size:15px;font-weight:600;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .app-versions{display:flex;gap:18px;margin-bottom:16px}
+  .vk{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:var(--dim2);margin-bottom:4px}
+  .vv{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500}
+  .sidecars{margin-top:16px;padding-top:14px;border-top:1px solid var(--track)}
+  .sidecar-h{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:var(--dim2);margin-bottom:10px}
+  .sidecar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .sidecar + .sidecar{margin-top:8px}
+  .sidecar-name{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);min-width:0}
+  .sidecar-name b{width:4px;height:4px;border-radius:50%;background:#4a525d;flex:none}
+  .sidecar-name em{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sidecar-ver{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim);flex:none}
+</style>
+</head>
+<body>
+<div class="wrap" id="root"></div>
+
+<script>
+/* ================================================================
+   CONFIG  — adjust to taste
+   ================================================================ */
+const CONFIG = {
+  // Live data file, served by nginx from the read-only volume mount at
+  // /usr/share/nginx/html/data/metrics.json (see docker-compose.yml).
+  // The host collector.py writes it every ~5 minutes.
+  dataUrl: 'data/metrics.json',
+  refreshSeconds: 30,        // how often to re-poll dataUrl (data refreshes host-side every ~5 min)
+  showTrends: true           // show the inbound/outbound sparklines
+};
+
+/* ================================================================
+   EMBEDDED SNAPSHOT  — placeholder fallback shown when metrics.json
+   can't be fetched (e.g. opening this file directly, or before the
+   collector's first run). Intentionally blank: every value is a
+   neutral placeholder and the list arrays are empty. collector.py
+   emits the real, populated schema. The array elements (omitted here)
+   take this shape:
+     disks:    { "name": str, "temp": int }
+     pools:    { "name": str, "used": num, "total": num, "unit": str }
+     apps:     { "name": str, "logo"?: str (image URL), "current": str,
+                 "latest": str, "status": "ok" | "update",
+                 "containers": [ { "name": str, "version": str } ] }
+     routines: { "name": str, "schedule": str,
+                 "status": "ok" | "warning" | "error" | "running",
+                 "lastRun": iso8601|null, "url": str,
+                 "disks"?: [ { "label": str, "used": num, "total": num, "unit": str } ] }
+   ================================================================ */
+const EMBEDDED = {
+  "server": { "name": "—", "ip": "—", "uptime": "—", "status": "ok" },
+  "metrics": {
+    "cpu": { "usage": 0, "temp": 0 },
+    "memory": { "usage": 0, "used": "0", "total": "0", "unit": "GB" },
+    "disks": [],
+    "pools": []
+  },
+  "array": {
+    "started": false,
+    "parity": { "lastCheck": null, "duration": "—", "resErrors": 0, "sbSynced": false }
+  },
+  "network": {
+    "currentIn": "0", "currentOut": "0", "unit": "MB/s",
+    "trendIn":  [],
+    "trendOut": [],
+    "speedTest": { "download": 0, "upload": 0, "ping": 0, "lastRun": null },
+    "tailscale": { "connected": false, "hostname": null }
+  },
+  "apps": [],
+  "routines": []
+};
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
+const C = 289.03; // ring circumference (r = 46)
+const APP_PALETTE = ['#7c6cff','#2dd4a7','#f5b13d','#f2705c','#3d9bf5','#e35cc9','#5cd6f5','#9bd45c','#f25c8a','#5c7cf5'];
+
+const pctColor  = p => p < 70 ? 'var(--emerald)' : p < 88 ? 'var(--amber)' : 'var(--crimson)';
+const tempColor = t => t < 48 ? 'var(--emerald)' : t < 62 ? 'var(--amber)' : 'var(--crimson)';
+const mix = (c, pct) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function sparkPoints(arr){
+  if (!arr || arr.length < 2) return '';
+  const w = 240, h = 46, max = Math.max.apply(null, arr.concat(0.001));
+  return arr.map((v,i) => (i/(arr.length-1)*w).toFixed(1) + ',' + (h-(v/max)*h*0.88-3).toFixed(1)).join(' ');
+}
+function timeAgo(ts){
+  if (!ts) return '—';
+  const s = (Date.now() - new Date(ts).getTime())/1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s/60)+'m ago';
+  if (s < 86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+function fmtDate(ts){
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' · ' +
+         d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+}
+
+/* ================================================================
+   STATE + DATA LOADING
+   ================================================================ */
+const state = { data: EMBEDDED, lastFetch: 0, live: null };
+
+async function load(){
+  try {
+    const res = await fetch(CONFIG.dataUrl, { cache: 'no-store' });
+    if (!res.ok) throw new Error('http ' + res.status);
+    state.data = await res.json();
+    state.live = true;
+    state.lastFetch = Date.now();
+  } catch (e) {
+    // No reachable metrics.json — fall back to the embedded snapshot.
+    if (!state.data) state.data = EMBEDDED;
+    state.live = false;
+  }
+  render();
+}
+
+/* ================================================================
+   SECTION BUILDERS
+   ================================================================ */
+function ringCard(label, pct, centerSub, footHTML){
+  const color = pctColor(pct);
+  const offset = (C * (1 - pct/100)).toFixed(2);
+  return `
+  <div class="card ring-card">
+    <div class="card-label">${label}</div>
+    <div class="ring-wrap">
+      <svg viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="46" fill="none" stroke-width="9" style="stroke:var(--track)"></circle>
+        <circle cx="60" cy="60" r="46" fill="none" stroke-width="9" stroke-linecap="round"
+                stroke-dasharray="${C}" stroke-dashoffset="${offset}" transform="rotate(-90 60 60)"
+                style="stroke:${color};transition:stroke-dashoffset .6s ease,stroke .4s ease"></circle>
+      </svg>
+      <div class="ring-center">
+        <div class="ring-val">${pct}<span>%</span></div>
+        <div class="ring-sub">${centerSub}</div>
+      </div>
+    </div>
+    <div class="ring-foot">${footHTML}</div>
+  </div>`;
+}
+
+function tempsCard(m){
+  const rows = [`
+    <div class="row">
+      <div class="row-name"><span class="dot" style="background:${tempColor(m.cpu.temp)}"></span>CPU Package</div>
+      <div class="row-val" style="color:${tempColor(m.cpu.temp)}">${m.cpu.temp}°C</div>
+    </div>`];
+  for (const d of m.disks){
+    rows.push(`
+    <div class="row">
+      <div class="row-name"><span class="dot" style="background:${tempColor(d.temp)}"></span>${esc(d.name)}</div>
+      <div class="row-val" style="color:${tempColor(d.temp)}">${d.temp}°C</div>
+    </div>`);
+  }
+  return `<div class="card"><div class="card-label">Temperatures</div>${rows.join('')}</div>`;
+}
+
+function storageCard(m){
+  const pools = m.pools.map(p => {
+    const pct = Math.round((p.used / p.total) * 100);
+    const free = Number((p.total - p.used).toFixed(2));
+    return `
+    <div>
+      <div class="pool-head">
+        <span class="pool-name">${esc(p.name)}</span>
+        <span class="pool-meta">${p.used} / ${p.total} ${esc(p.unit)}</span>
+      </div>
+      <div class="bar"><i style="width:${pct}%;background:${pctColor(pct)}"></i></div>
+      <div class="pool-foot">${pct}% used · ${free} ${esc(p.unit)} free</div>
+    </div>`;
+  }).join('');
+  return `<div class="card"><div class="card-label">Storage Pools</div><div class="pools">${pools}</div></div>`;
+}
+
+function arrayCard(a){
+  const p = a.parity;
+  const col = a.started ? 'var(--emerald)' : 'var(--crimson)';
+  const border = mix(col, 28);
+  const errCol = p.resErrors > 0 ? 'var(--crimson)' : 'var(--emerald)';
+  const syncCol = p.sbSynced ? 'var(--emerald)' : 'var(--amber)';
+  return `
+  <div class="card">
+    <div class="card-label">Unraid Array &amp; Parity</div>
+    <div class="array-status" style="border-color:${border}">
+      <span class="led" style="background:${col};box-shadow:0 0 12px ${col}"></span>
+      <div>
+        <div class="lbl" style="color:${col}">${a.started ? 'Array Started' : 'Array Stopped'}</div>
+        <div class="sub">${a.started ? 'Protected · parity valid' : 'Unprotected'}</div>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-k">Last Parity Check</div><div class="stat-v">${fmtDate(p.lastCheck)}</div></div>
+      <div class="stat"><div class="stat-k">Duration</div><div class="stat-v">${esc(p.duration)}</div></div>
+      <div class="stat"><div class="stat-k">Sync Errors</div><div class="stat-v" style="color:${errCol}">${p.resErrors}</div></div>
+      <div class="stat"><div class="stat-k">Parity Status</div><div class="stat-v" style="color:${syncCol}">${p.sbSynced ? 'In sync' : 'Out of sync'}</div></div>
+    </div>
+  </div>`;
+}
+
+function networkCard(n){
+  const ip = sparkPoints(n.trendIn), op = sparkPoints(n.trendOut);
+  const inArea  = ip ? ip + ' 240,46 0,46' : '';
+  const outArea = op ? op + ' 240,46 0,46' : '';
+  const sp = n.speedTest, ts = n.tailscale;
+  const tsCol = ts.connected ? 'var(--emerald)' : 'var(--crimson)';
+  const tsBg  = mix(tsCol, 8);
+  const tsBd  = mix(tsCol, 22);
+  const trends = CONFIG.showTrends ? `
+      <svg class="spark" viewBox="0 0 240 46" preserveAspectRatio="none">
+        <polygon points="${inArea}" style="fill:${mix('var(--emerald)', 12)}"></polygon>
+        <polyline points="${ip}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke" style="fill:none;stroke:var(--emerald)"></polyline>
+      </svg>` : '';
+  const trendsOut = CONFIG.showTrends ? `
+      <svg class="spark" viewBox="0 0 240 46" preserveAspectRatio="none">
+        <polygon points="${outArea}" style="fill:${mix('var(--blue)', 12)}"></polygon>
+        <polyline points="${op}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke" style="fill:none;stroke:var(--blue)"></polyline>
+      </svg>` : '';
+  return `
+  <div class="card">
+    <div class="card-label">Network &amp; Speed Test</div>
+    <div class="traffic">
+      <div>
+        <div class="traffic-head"><span class="traffic-lbl">↓ Inbound</span>
+          <span class="traffic-val" style="color:var(--emerald)">${esc(n.currentIn)} <span class="u">${esc(n.unit)}</span></span></div>
+        ${trends}
+      </div>
+      <div>
+        <div class="traffic-head"><span class="traffic-lbl">↑ Outbound</span>
+          <span class="traffic-val" style="color:var(--blue)">${esc(n.currentOut)} <span class="u">${esc(n.unit)}</span></span></div>
+        ${trendsOut}
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="speed-head">
+      <span class="card-label" style="margin:0">Speed Test</span>
+      <span class="mono" style="font-size:11px;color:var(--dim2)">ran ${timeAgo(sp.lastRun)}</span>
+    </div>
+    <div class="speed-grid">
+      <div class="speed"><div class="speed-v" style="color:var(--emerald)">${sp.download}</div><div class="speed-k">DOWNLOAD · Mbps</div></div>
+      <div class="speed"><div class="speed-v" style="color:var(--blue)">${sp.upload}</div><div class="speed-k">UPLOAD · Mbps</div></div>
+      <div class="speed"><div class="speed-v" style="color:var(--text)">${sp.ping}</div><div class="speed-k">PING · ms</div></div>
+    </div>
+    <div class="ts" style="background:${tsBg};border-color:${tsBd}">
+      <div style="display:flex;align-items:center;gap:11px">
+        <span class="dot" style="width:9px;height:9px;background:${tsCol};box-shadow:0 0 9px ${tsCol}"></span>
+        <div>
+          <div class="ts-name" style="color:${tsCol}">Tailscale ${ts.connected ? 'Connected' : 'Disconnected'}</div>
+          <div class="ts-host">${esc(ts.hostname || '—')}</div>
+        </div>
+      </div>
+      <span class="ts-tag">MESH VPN</span>
+    </div>
+  </div>`;
+}
+
+function routinesSection(routines){
+  if (!routines || !routines.length) return '';
+  const statusMap = {
+    ok:      { label: 'Healthy', color: 'var(--emerald)' },
+    running: { label: 'Running', color: 'var(--blue)' },
+    warning: { label: 'Warning', color: 'var(--amber)' },
+    error:   { label: 'Failed',  color: 'var(--crimson)' }
+  };
+  const cards = routines.map(r => {
+    const st = statusMap[r.status] || statusMap.ok;
+    // `disks` is an array with one entry per filesystem parsed from the ping body.
+    const diskList = r.disks || [];
+    const disk = diskList.map(dk => {
+      const pct = dk.total ? Math.round((dk.used / dk.total) * 100) : 0;
+      return `
+      <div class="disk-block">
+        <div class="disk-head">
+          <span class="disk-lbl">${esc(dk.label || 'Destination disk')}</span>
+          <span class="disk-meta">${dk.used} / ${dk.total} ${esc(dk.unit)}</span>
+        </div>
+        <div class="bar"><i style="width:${pct}%;background:${pctColor(pct)}"></i></div>
+        <div class="disk-foot">${pct}% used</div>
+      </div>`;
+    }).join('');
+    return `
+    <a class="routine" href="${esc(r.url || '#')}" target="_blank" rel="noopener">
+      <div class="routine-top">
+        <span class="pill" style="color:${st.color};background:${mix(st.color, 12)};border-color:${mix(st.color, 32)}">
+          <span class="dot" style="background:${st.color}"></span>${st.label}
+        </span>
+        <span class="read-more">Read more ↗</span>
+      </div>
+      <div class="routine-name">${esc(r.name)}</div>
+      <div class="routine-sched">${esc(r.schedule)}</div>
+      <div class="routine-last"><span style="color:var(--dim2)">Last reported</span><span class="mono" style="color:var(--soft)">${timeAgo(r.lastRun)}</span></div>
+      ${disk}
+    </a>`;
+  }).join('');
+  return `
+  <div class="section-head"><h2 class="section-title">Scheduled Routines</h2></div>
+  <div class="grid-routines">${cards}</div>`;
+}
+
+function appsSection(apps){
+  const updates = apps.filter(a => a.status !== 'ok').length;
+  const upColor = updates > 0 ? 'var(--amber)' : 'var(--emerald)';
+  const cards = apps.map((a,i) => {
+    const tileColor = APP_PALETTE[i % APP_PALETTE.length];
+    const hasUpdate = a.status !== 'ok';
+    const latestColor = hasUpdate ? 'var(--amber)' : 'var(--emerald)';
+    const ribbon = hasUpdate ? `<span class="ribbon">UPDATE</span>` : '';
+    let sidecars = '';
+    if (a.containers && a.containers.length){
+      const rows = a.containers.map(c => `
+        <div class="sidecar">
+          <span class="sidecar-name"><b></b><em>${esc(c.name)}</em></span>
+          <span class="sidecar-ver">${esc(c.version)}</span>
+        </div>`).join('');
+      sidecars = `<div class="sidecars"><div class="sidecar-h">SUPPORTING CONTAINERS</div>${rows}</div>`;
+    }
+    // Logo if provided, else the name's first letter. A failed image load
+    // (onerror) falls back to the letter so a bad URL never leaves a blank tile.
+    const initial = esc((a.name.charAt(0) || '?').toUpperCase());
+    const tile = a.logo
+      ? `<div class="app-tile" data-letter="${initial}" style="background:${mix(tileColor, 16)};color:${tileColor}"><img class="app-logo" src="${esc(a.logo)}" alt="" loading="lazy" onerror="this.parentNode.textContent=this.parentNode.dataset.letter"></div>`
+      : `<div class="app-tile" style="background:${mix(tileColor, 16)};color:${tileColor}">${initial}</div>`;
+    return `
+    <div class="app-card">
+      ${ribbon}
+      <div class="app-head">
+        ${tile}
+        <div class="app-name">${esc(a.name)}</div>
+      </div>
+      <div class="app-versions">
+        <div><div class="vk">RUNNING</div><div class="vv" style="color:var(--soft)">${esc(a.current)}</div></div>
+        <div><div class="vk">LATEST</div><div class="vv" style="color:${latestColor}">${esc(a.latest)}</div></div>
+      </div>
+      ${sidecars}
+    </div>`;
+  }).join('');
+  return `
+  <div class="section-head">
+    <h2 class="section-title">Self-Hosted Applications</h2>
+    <span class="mono" style="font-size:12px;color:${upColor}">${updates} updates available</span>
+  </div>
+  <div class="grid-apps">${cards}</div>`;
+}
+
+/* ---- sync indicator (header, top-right) ---- */
+function syncIndicator(){
+  let txt, color;
+  if (state.live === true){
+    const s = Math.max(0, Math.floor((Date.now() - state.lastFetch)/1000));
+    txt = s < 2 ? 'just now' : s < 60 ? s+'s ago' : Math.floor(s/60)+'m ago';
+    color = 'var(--emerald)';
+  } else if (state.live === false){
+    txt = 'static snapshot'; color = 'var(--amber)';
+  } else {
+    txt = 'connecting…'; color = 'var(--amber)';
+  }
+  return { txt, color };
+}
+function updateSync(){
+  const { txt, color } = syncIndicator();
+  const t = document.getElementById('syncText'), d = document.getElementById('syncDot');
+  if (t) t.textContent = txt;
+  if (d) d.style.background = color;
+}
+
+/* ================================================================
+   RENDER
+   ================================================================ */
+function render(){
+  const d = state.data;
+  const sv = d.server, m = d.metrics;
+  const { txt, color } = syncIndicator();
+
+  document.title = esc(sv.name) + ' - Unraid Monitor Dashboard';
+  document.getElementById('root').innerHTML = `
+    <header class="header">
+      <div class="brand">
+        <div class="logo">&gt;_</div>
+        <div>
+          <div class="server-name">${esc(sv.name)}</div>
+          <div class="server-meta mono">
+            <span>${esc(sv.ip)}</span><span class="sep">·</span><span>uptime ${esc(sv.uptime)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="sync mono">
+          <span class="pulse-dot" id="syncDot" style="background:${color}"></span>
+          synced <span id="syncText">${txt}</span>
+        </div>
+        <button class="theme-toggle" onclick="toggleTheme()">
+          <span class="tt-dot"></span><span id="ttLabel">${themeLabel()}</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="grid-core">
+      ${ringCard('CPU Load', m.cpu.usage, 'utilization',
+        `<span class="dot" style="background:${tempColor(m.cpu.temp)}"></span>core <span style="color:${tempColor(m.cpu.temp)};font-weight:600">&nbsp;${m.cpu.temp}°C</span>`)}
+      ${ringCard('Memory', m.memory.usage, 'in use',
+        `${m.memory.used} / ${m.memory.total} ${esc(m.memory.unit)}`)}
+      ${tempsCard(m)}
+      ${storageCard(m)}
+    </div>
+
+    <div class="grid-mid">
+      ${arrayCard(d.array)}
+      ${networkCard(d.network)}
+    </div>
+
+    ${routinesSection(d.routines)}
+    ${appsSection(d.apps)}
+  `;
+}
+
+/* ---- theme ---- */
+const THEME_KEY = 'dashTheme';
+function currentTheme(){ try { return localStorage.getItem(THEME_KEY) || 'dark'; } catch(e){ return 'dark'; } }
+function applyTheme(t){ document.documentElement.setAttribute('data-theme', t); }
+function themeLabel(){ return currentTheme() === 'light' ? 'Dark mode' : 'Light mode'; }
+function toggleTheme(){
+  const next = currentTheme() === 'light' ? 'dark' : 'light';
+  try { localStorage.setItem(THEME_KEY, next); } catch(e){}
+  applyTheme(next);
+  const l = document.getElementById('ttLabel'); if (l) l.textContent = themeLabel();
+}
+
+/* ================================================================
+   BOOT
+   ================================================================ */
+applyTheme(currentTheme());  // restore saved theme before first paint
+render();        // paint immediately from the embedded snapshot
+load();          // then try to pull live metrics.json
+setInterval(load, Math.max(1, CONFIG.refreshSeconds) * 1000);
+setInterval(updateSync, 1000);  // keep the "synced X ago" label ticking
+</script>
+</body>
+</html>
