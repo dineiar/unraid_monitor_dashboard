@@ -500,18 +500,22 @@ function appsSection(apps){
 }
 
 /* ---- sync indicator (header, top-right) ---- */
+function fmtAgo(ts){
+  // Elapsed time since ts, in the smallest sensible unit: s -> m -> h -> d.
+  const sec = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime())/1000));
+  if (sec < 60)    return sec + 's ago';
+  if (sec < 3600)  return Math.floor(sec/60) + 'm ago';
+  if (sec < 86400) return Math.floor(sec/3600) + 'h ago';
+  return Math.floor(sec/86400) + 'd ago';
+}
 function syncIndicator(){
-  let txt, color;
-  if (state.live === true){
-    const s = Math.max(0, Math.floor((Date.now() - state.lastFetch)/1000));
-    txt = s < 2 ? 'just now' : s < 60 ? s+'s ago' : Math.floor(s/60)+'m ago';
-    color = 'var(--emerald)';
-  } else if (state.live === false){
-    txt = 'static snapshot'; color = 'var(--amber)';
-  } else {
-    txt = 'connecting…'; color = 'var(--amber)';
-  }
-  return { txt, color };
+  if (state.live === false) return { txt: 'static snapshot', color: 'var(--amber)' };
+  if (state.live !== true)  return { txt: 'connecting…',     color: 'var(--amber)' };
+  // Live data: show how old the collected data is, from the collector timestamp.
+  const gen = state.data && state.data.generatedAt;
+  return gen
+    ? { txt: 'data from ' + fmtAgo(gen), color: 'var(--emerald)' }
+    : { txt: 'live', color: 'var(--emerald)' };
 }
 function updateSync(){
   const { txt, color } = syncIndicator();
@@ -543,7 +547,7 @@ function render(){
       <div class="header-right">
         <div class="sync mono">
           <span class="pulse-dot" id="syncDot" style="background:${color}"></span>
-          synced <span id="syncText">${txt}</span>
+          <span id="syncText">${txt}</span>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()">
           <span class="tt-dot"></span><span id="ttLabel">${themeLabel()}</span>
@@ -589,7 +593,7 @@ applyTheme(currentTheme());  // restore saved theme before first paint
 render();        // paint immediately from the embedded snapshot
 load();          // then try to pull live metrics.json
 setInterval(load, Math.max(1, CONFIG.refreshSeconds) * 1000);
-setInterval(updateSync, 1000);  // keep the "synced X ago" label ticking
+setInterval(updateSync, 1000);  // keep the "data from X ago" label ticking
 </script>
 </body>
 </html>

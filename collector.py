@@ -1527,7 +1527,8 @@ def build_metrics(state):
         "network": network,
         "apps": apps,
         "routines": routines,
-        # Handy for debugging / "synced X ago" sanity (frontend ignores it).
+        # Collection timestamp (UTC ISO-8601). The dashboard shows it as
+        # "data from X ago".
         "generatedAt": iso_utc(),
     }
 
