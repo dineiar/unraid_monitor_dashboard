@@ -15,13 +15,7 @@
 # =============================================================================
 services:
   dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    # To deploy from a registry instead of building on the host, comment out
-    # the `build:` block above and uncomment the line below:
-    # image: ghcr.io/your/server-dashboard:latest
-    image: server-dashboard:latest
+    image: ghcr.io/dineiar/unraid_monitor_dashboard:latest
     container_name: server-dashboard
     hostname: server-dashboard
 
@@ -71,7 +65,3 @@ services:
       resources:
         limits:
           memory: 64M
-
-networks:
-  default:
-    name: dashboard-net
