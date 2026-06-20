@@ -298,6 +298,16 @@ APPS = [
         "latest": {"type": "github", "repo": "gethomepage/homepage"},
         "sidecars": [],
     },
+    {
+        "name": "Paperclip",
+        "logo": "https://cdn.jsdelivr.net/gh/selfhst/icons/png/paperclip-ai.png",
+        "match": r"paperclip",
+        "exclude": r"postgres|database|db",
+        "latest": {"type": "github", "repo": "paperclipai/paperclip"},
+        "sidecars": [
+            {"name": "PostgreSQL", "match": r"paperclip.*(postgres|database|db)"},
+        ],
+    },
     # {
     #     "name": "Authentik",
     #     "logo": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/authentik.png",
