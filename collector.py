@@ -308,6 +308,18 @@ APPS = [
             {"name": "PostgreSQL", "match": r"paperclip.*(postgres|database|db)"},
         ],
     },
+    {
+        # This dashboard's own container. Its image ships an
+        # org.opencontainers.image.version label (stamped at build time via the
+        # VERSION build-arg, see the Dockerfile), so the running version resolves
+        # cleanly; the floating ':latest' tag alone would not.
+        "name": "Unraid Monitor",
+        "logo": "https://raw.githubusercontent.com/loadingpage/unraid-icons/main/icons/dashboard.png",
+        "match": r"server-dashboard|unraid.?monitor",
+        "exclude": r"",
+        "latest": {"type": "github", "repo": "dineiar/unraid_monitor_dashboard"},
+        "sidecars": [],
+    },
     # {
     #     "name": "Authentik",
     #     "logo": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/authentik.png",
@@ -1108,6 +1120,32 @@ def docker_ps():
 _inspect_cache = {}
 
 
+def _inspect(container):
+    """Run `docker inspect` once per container id and cache the parsed bits we
+    reuse: image labels, the configured image ref, the container state, and the
+    healthcheck status. Returns a dict with keys: labels, image_cfg, state,
+    health (state/health lowercased; health is "" when the image has no
+    HEALTHCHECK)."""
+    cid = container["id"]
+    if cid in _inspect_cache:
+        return _inspect_cache[cid]
+    rc, out = run_cmd([CONFIG["docker_bin"], "inspect", cid], timeout=15)
+    info = {"labels": {}, "image_cfg": "", "state": "", "health": ""}
+    if rc == 0 and out.strip():
+        try:
+            data = json.loads(out)[0]
+            cfg = data.get("Config", {}) or {}
+            info["labels"] = cfg.get("Labels") or {}
+            info["image_cfg"] = cfg.get("Image", "")
+            st = data.get("State", {}) or {}
+            info["state"] = (st.get("Status") or "").lower()
+            info["health"] = ((st.get("Health") or {}).get("Status") or "").lower()
+        except Exception as e:  # noqa: BLE001
+            warn("inspect parse failed for {}: {}".format(container["name"], e))
+    _inspect_cache[cid] = info
+    return info
+
+
 def _image_tag(image_ref):
     """Extract just the tag from an image reference, or '' if untagged.
     Handles registries with ports ('host:5000/repo:tag') and digest pins
@@ -1140,20 +1178,8 @@ def container_version(container):
          floating ':latest' (jellyfin, qbittorrent, homepage).
       3. otherwise the first non-empty source as-is, else '—'.
     """
-    cid = container["id"]
-    if cid in _inspect_cache:
-        labels, image_cfg = _inspect_cache[cid]
-    else:
-        rc, out = run_cmd([CONFIG["docker_bin"], "inspect", cid], timeout=15)
-        labels, image_cfg = {}, ""
-        if rc == 0 and out.strip():
-            try:
-                data = json.loads(out)[0]
-                labels = (data.get("Config", {}) or {}).get("Labels") or {}
-                image_cfg = (data.get("Config", {}) or {}).get("Image", "")
-            except Exception as e:  # noqa: BLE001
-                warn("inspect parse failed for {}: {}".format(container["name"], e))
-        _inspect_cache[cid] = (labels, image_cfg)
+    info = _inspect(container)
+    labels, image_cfg = info["labels"], info["image_cfg"]
 
     # Candidate raw version strings, most-trustworthy first.
     candidates = []
@@ -1173,6 +1199,15 @@ def container_version(container):
             return norm
     # Nothing version-like (e.g. only ':latest'): show the first source as-is.
     return normalize_version(candidates[0]) if candidates else "—"
+
+
+def container_health(container):
+    """The container's 'exact status' for the dashboard indicator: the Docker
+    healthcheck status when the image declares a HEALTHCHECK (healthy / starting
+    / unhealthy), otherwise the raw container state (running, restarting, paused,
+    …). The frontend renders a marker for anything that isn't healthy/running."""
+    info = _inspect(container)
+    return info["health"] or info["state"] or "unknown"
 
 
 def find_container(containers, match_re, exclude_re=None):
@@ -1269,7 +1304,7 @@ def collect_apps(state):
         out = []
         for a in APPS:
             entry = {"name": a["name"], "current": "—", "latest": "—",
-                     "status": "ok", "containers": []}
+                     "status": "ok", "health": None, "containers": []}
             if a.get("logo"):
                 entry["logo"] = a["logo"]
             out.append(entry)
@@ -1279,13 +1314,15 @@ def collect_apps(state):
     for app in APPS:
         primary = find_container(containers, app["match"], app.get("exclude"))
         current = container_version(primary) if primary else "—"
+        health = container_health(primary) if primary else None
 
         # Supporting containers.
         sidecars = []
         for sc in app.get("sidecars", []):
             c = find_container(containers, sc["match"])
             if c:
-                sidecars.append({"name": sc["name"], "version": container_version(c)})
+                sidecars.append({"name": sc["name"], "version": container_version(c),
+                                 "health": container_health(c)})
 
         latest = resolve_latest(app, state)
 
@@ -1302,6 +1339,7 @@ def collect_apps(state):
             "current": current,
             "latest": latest_disp,
             "status": status,
+            "health": health,
             "containers": sidecars,
         }
         if app.get("logo"):

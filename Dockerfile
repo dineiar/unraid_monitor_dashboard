@@ -15,8 +15,15 @@
 # =============================================================================
 FROM nginxinc/nginx-unprivileged:alpine
 
+# Image version, stamped at build time (e.g. --build-arg VERSION=v1.2.3). This
+# lets the dashboard report its own running version in the monitored-apps card;
+# the floating ':latest' deploy tag carries no version on its own. Empty when
+# unset (harmless: the collector simply ignores a blank version label).
+ARG VERSION=
+
 LABEL org.opencontainers.image.title="unraid-monitor-dashboard" \
       org.opencontainers.image.description="Static home-server dashboard. Reads metrics.json produced by the host collector." \
+      org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.source="https://github.com/dineiar/unraid_monitor_dashboard"
 
 # The base image drops to USER 101, which cannot write under the root-owned

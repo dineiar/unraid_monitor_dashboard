@@ -35,6 +35,10 @@
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
   .pulse-dot{width:7px;height:7px;border-radius:50%;display:inline-block;animation:pulse 2s ease-in-out infinite}
   .dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+  /* marker shown next to a container that isn't healthy/running; its title
+     carries the exact docker status (starting, unhealthy, …) on hover */
+  .health-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none;
+              cursor:help;animation:pulse 2s ease-in-out infinite}
 
   /* ---- header ---- */
   .header{display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:flex-end;
@@ -192,7 +196,10 @@ const CONFIG = {
      pools:    { "name": str, "used": num, "total": num, "unit": str }
      apps:     { "name": str, "logo"?: str (image URL), "current": str,
                  "latest": str, "status": "ok" | "update",
-                 "containers": [ { "name": str, "version": str } ] }
+                 "health": docker status str | null (e.g. "healthy",
+                           "starting", "unhealthy"; null when not running),
+                 "containers": [ { "name": str, "version": str,
+                                   "health": docker status str } ] }
      routines: { "name": str, "schedule": str,
                  "status": "ok" | "warning" | "error" | "running",
                  "lastRun": iso8601|null, "url": str,
@@ -231,6 +238,20 @@ const pctColor  = p => p < 70 ? 'var(--emerald)' : p < 88 ? 'var(--amber)' : 'va
 const tempColor = t => t < 48 ? 'var(--emerald)' : t < 62 ? 'var(--amber)' : 'var(--crimson)';
 const mix = (c, pct) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// Docker container statuses treated as "fine" — no indicator is drawn for them.
+const HEALTH_OK = new Set(['healthy', 'running']);
+// Hard-failure states get crimson; transient/intermediate states get amber.
+const healthColor = s => /unhealthy|dead|exited|restarting/.test(s) ? 'var(--crimson)' : 'var(--amber)';
+// Small marker for a container that isn't healthy/running. The title attribute
+// carries the EXACT docker status (e.g. "starting", "unhealthy") shown on hover.
+// Returns '' (nothing rendered) for healthy/running or a missing status.
+function healthDot(health){
+  if (!health) return '';
+  const s = String(health).toLowerCase();
+  if (HEALTH_OK.has(s)) return '';
+  return `<span class="health-dot" title="${esc(health)}" style="background:${healthColor(s)}"></span>`;
+}
 
 function sparkPoints(arr){
   if (!arr || arr.length < 2) return '';
@@ -466,7 +487,7 @@ function appsSection(apps){
     if (a.containers && a.containers.length){
       const rows = a.containers.map(c => `
         <div class="sidecar">
-          <span class="sidecar-name"><b></b><em>${esc(c.name)}</em></span>
+          <span class="sidecar-name"><b></b><em>${esc(c.name)}</em>${healthDot(c.health)}</span>
           <span class="sidecar-ver">${esc(c.version)}</span>
         </div>`).join('');
       sidecars = `<div class="sidecars"><div class="sidecar-h">SUPPORTING CONTAINERS</div>${rows}</div>`;
@@ -483,6 +504,7 @@ function appsSection(apps){
       <div class="app-head">
         ${tile}
         <div class="app-name">${esc(a.name)}</div>
+        ${healthDot(a.health)}
       </div>
       <div class="app-versions">
         <div><div class="vk">RUNNING</div><div class="vv" style="color:var(--soft)">${esc(a.current)}</div></div>

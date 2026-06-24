@@ -41,8 +41,12 @@ in the `EMBEDDED` object and its comment). Change both together.
 - The image is `linux/amd64` (Unraid is x86-64):
   ```bash
   docker buildx build --platform linux/amd64 \
+    --build-arg VERSION="$(git describe --tags --abbrev=0)" \
     -t ghcr.io/dineiar/unraid_monitor_dashboard:latest --load .
   ```
+  The `VERSION` build-arg stamps `org.opencontainers.image.version` so the
+  dashboard reports its own running version (the "Unraid Monitor" app card).
+  Omitting it builds fine but leaves that card unable to resolve its version.
 
 ## Commits
 - Use **Conventional Commits** (https://www.conventionalcommits.org/): `feat`,
@@ -53,7 +57,8 @@ in the `EMBEDDED` object and its comment). Change both together.
 ## Release workflow
 **Never run this unless the user explicitly asks for a release, and always
 confirm the exact version number with the user before proceeding.** Then, in order:
-1. Build the image tagged with the `v`-prefixed semantic version (e.g. `vX.Y.Z`).
+1. Build the image tagged with the `v`-prefixed semantic version (e.g. `vX.Y.Z`),
+   passing `--build-arg VERSION=vX.Y.Z` so the image self-reports its version.
 2. Tag that same image `latest`.
 3. Push both tags to GHCR (`ghcr.io/dineiar/unraid_monitor_dashboard`).
 4. Tag the commit with the same `vX.Y.Z` and push the tag.
